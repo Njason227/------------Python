@@ -49,6 +49,34 @@ class PatientModelTest(TestCase):
     def test_patient_status_display(self):
         self.assertEqual(self.patient.status_display, 'Ожидает распределения')
 
+    def test_severity_priority_light(self):
+        self.assertEqual(self.patient.severity_priority, 2)
+        self.assertEqual(self.patient.severity_priority_display, 'Низкий')
+
+    def test_severity_priority_extreme(self):
+        mental = MentalSeverity.objects.create(name='Крайне тяжёлая', level=4)
+        physical = PhysicalSeverity.objects.create(name='Критическое', level=4)
+        patient = Patient.objects.create(
+            last_name='Тяжёлый', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender, diagnosis=self.diagnosis,
+            mental_severity=mental, physical_severity=physical,
+        )
+        self.assertEqual(patient.severity_priority, 8)
+        self.assertEqual(patient.severity_priority_display, 'Критический')
+
+    def test_severity_priority_moderate(self):
+        mental = MentalSeverity.objects.create(name='Умеренная', level=2)
+        physical = PhysicalSeverity.objects.create(name='Средней тяжести', level=2)
+        patient = Patient.objects.create(
+            last_name='Средний', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender, diagnosis=self.diagnosis,
+            mental_severity=mental, physical_severity=physical,
+        )
+        self.assertEqual(patient.severity_priority, 4)
+        self.assertEqual(patient.severity_priority_display, 'Средний')
+
     def test_assignment_log_str(self):
         dept = Department.objects.create(name='Отделение', total_beds=10)
         log = AssignmentLog.objects.create(

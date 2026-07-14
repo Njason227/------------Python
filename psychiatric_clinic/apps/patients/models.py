@@ -69,6 +69,22 @@ class Patient(models.Model):
         return f'{self.last_name} {self.first_name} {self.patronymic}'.strip()
 
     @property
+    def severity_priority(self):
+        """Числовой приоритет очереди. Чем тяжелее состояние — тем выше приоритет."""
+        return self.mental_severity.level + self.physical_severity.level
+
+    @property
+    def severity_priority_display(self):
+        score = self.severity_priority
+        if score >= 7:
+            return 'Критический'
+        if score >= 5:
+            return 'Высокий'
+        if score >= 3:
+            return 'Средний'
+        return 'Низкий'
+
+    @property
     def status_display(self):
         return self.get_status_display()
 

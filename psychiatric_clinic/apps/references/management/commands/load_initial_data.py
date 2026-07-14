@@ -1,6 +1,7 @@
 import json
 from django.core.management.base import BaseCommand
 from apps.references.models import Gender, MentalSeverity, PhysicalSeverity, Diagnosis, Department
+from apps.distribution.models import DistributionRule
 
 
 class Command(BaseCommand):
@@ -137,5 +138,254 @@ class Command(BaseCommand):
             if created:
                 dept_created += 1
         self.stdout.write(self.style.SUCCESS(f'Загружено {dept_created} отделений'))
+
+        rules_data = [
+            {
+                'dept_name': 'Отделение интенсивной терапии',
+                'diagnosis_code': None,
+                'priority': 1,
+                'min_mental': 4, 'max_mental': 4,
+                'min_physical': 4, 'max_physical': 4,
+                'gender': '', 'age_category': '',
+                'comment': 'Крайне тяжёлое состояние любого профиля → ИТ',
+            },
+            {
+                'dept_name': 'Отделение интенсивной терапии',
+                'diagnosis_code': None,
+                'priority': 2,
+                'min_mental': 3, 'max_mental': 4,
+                'min_physical': 3, 'max_physical': 4,
+                'gender': '', 'age_category': '',
+                'comment': 'Тяжёлое+ состояние любого профиля → ИТ',
+            },
+            {
+                'dept_name': 'Отделение шизофрении и психотических расстройств',
+                'diagnosis_code': 'F20',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F20-F29 Шизофрения → профильное',
+            },
+            {
+                'dept_name': 'Отделение шизофрении и психотических расстройств',
+                'diagnosis_code': 'F21',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F21 Шизотипическое → профильное',
+            },
+            {
+                'dept_name': 'Отделение шизофрении и психотических расстройств',
+                'diagnosis_code': 'F22',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F22 Бредовые → профильное',
+            },
+            {
+                'dept_name': 'Отделение шизофрении и психотических расстройств',
+                'diagnosis_code': 'F23',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F23 Острые психотические → профильное',
+            },
+            {
+                'dept_name': 'Отделение шизофрении и психотических расстройств',
+                'diagnosis_code': 'F25',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F25 Шизоаффективные → профильное',
+            },
+            {
+                'dept_name': 'Отделение аффективных расстройств',
+                'diagnosis_code': 'F30',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F30 Мания → профильное',
+            },
+            {
+                'dept_name': 'Отделение аффективных расстройств',
+                'diagnosis_code': 'F31',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F31 Биполярное → профильное',
+            },
+            {
+                'dept_name': 'Отделение аффективных расстройств',
+                'diagnosis_code': 'F32',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F32 Депрессия → профильное',
+            },
+            {
+                'dept_name': 'Отделение аффективных расстройств',
+                'diagnosis_code': 'F33',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F33 Рекуррентная депрессия → профильное',
+            },
+            {
+                'dept_name': 'Отделение тревожных и невротических расстройств',
+                'diagnosis_code': 'F40',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F40 Фобии → профильное',
+            },
+            {
+                'dept_name': 'Отделение тревожных и невротических расстройств',
+                'diagnosis_code': 'F41',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F41 Тревожные → профильное',
+            },
+            {
+                'dept_name': 'Отделение тревожных и невротических расстройств',
+                'diagnosis_code': 'F42',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F42 ОКР → профильное',
+            },
+            {
+                'dept_name': 'Отделение тревожных и невротических расстройств',
+                'diagnosis_code': 'F43',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F43 Стресс → профильное',
+            },
+            {
+                'dept_name': 'Отделение тревожных и невротических расстройств',
+                'diagnosis_code': 'F44',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F44 Диссоциативные → профильное',
+            },
+            {
+                'dept_name': 'Отделение зависимостей',
+                'diagnosis_code': 'F10',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F10-F19 Зависимости → профильное',
+            },
+            {
+                'dept_name': 'Отделение зависимостей',
+                'diagnosis_code': 'F11',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F10-F19 Зависимости → профильное',
+            },
+            {
+                'dept_name': 'Отделение зависимостей',
+                'diagnosis_code': 'F12',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F10-F19 Зависимости → профильное',
+            },
+            {
+                'dept_name': 'Отделение личностных расстройств',
+                'diagnosis_code': 'F60',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 3,
+                'gender': '', 'age_category': 'ADULT',
+                'comment': 'F60 Расстройства личности → профильное',
+            },
+            {
+                'dept_name': 'Детско-подростковое отделение',
+                'diagnosis_code': 'F90',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 4,
+                'gender': '', 'age_category': 'CHILD',
+                'comment': 'F90-F98 Поведение (дети) → профильное',
+            },
+            {
+                'dept_name': 'Детско-подростковое отделение',
+                'diagnosis_code': 'F91',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 4,
+                'gender': '', 'age_category': 'CHILD',
+                'comment': 'F90-F98 Поведение (дети) → профильное',
+            },
+            {
+                'dept_name': 'Детско-подростковое отделение',
+                'diagnosis_code': 'F84',
+                'priority': 3,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 4,
+                'gender': '', 'age_category': 'CHILD',
+                'comment': 'F84 Аутизм (дети) → профильное',
+            },
+            {
+                'dept_name': 'Детско-подростковое отделение',
+                'diagnosis_code': 'F80',
+                'priority': 4,
+                'min_mental': 1, 'max_mental': 4,
+                'min_physical': 1, 'max_physical': 4,
+                'gender': '', 'age_category': 'CHILD',
+                'comment': 'F80-F89 Развитие (дети) → профильное',
+            },
+        ]
+
+        rule_created = 0
+        for rd in rules_data:
+            dept = Department.objects.filter(name=rd['dept_name']).first()
+            if not dept:
+                continue
+
+            diagnosis = None
+            if rd['diagnosis_code']:
+                diagnosis = Diagnosis.objects.filter(code=rd['diagnosis_code']).first()
+                if not diagnosis:
+                    continue
+
+            _, created = DistributionRule.objects.get_or_create(
+                department=dept,
+                diagnosis=diagnosis,
+                priority=rd['priority'],
+                defaults={
+                    'gender': rd['gender'],
+                    'age_category': rd['age_category'],
+                    'min_mental_severity': rd['min_mental'],
+                    'max_mental_severity': rd['max_mental'],
+                    'min_physical_severity': rd['min_physical'],
+                    'max_physical_severity': rd['max_physical'],
+                    'is_active': True,
+                }
+            )
+            if created:
+                rule_created += 1
+        self.stdout.write(self.style.SUCCESS(f'Загружено {rule_created} правил распределения'))
 
         self.stdout.write(self.style.SUCCESS('Начальные данные успешно загружены!'))

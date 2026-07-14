@@ -143,6 +143,56 @@ class DistributionServiceTest(TestCase):
         self.assertEqual(queue.count(), 1)
         self.assertEqual(queue.first(), p1)
 
+    def test_get_queue_sorted_by_severity(self):
+        p_light = Patient.objects.create(
+            last_name='Лёгкий', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_light, physical_severity=self.physical_good,
+            status='waiting'
+        )
+        p_extreme = Patient.objects.create(
+            last_name='Тяжёлый', first_name='Тест',
+            date_of_birth=date(1990, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_extreme, physical_severity=self.physical_heavy,
+            status='waiting'
+        )
+        p_moderate = Patient.objects.create(
+            last_name='Средний', first_name='Тест',
+            date_of_birth=date(1988, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_moderate, physical_severity=self.physical_good,
+            status='waiting'
+        )
+        queue = list(DistributionService.get_queue())
+        self.assertEqual(queue[0], p_extreme)
+        self.assertEqual(queue[1], p_moderate)
+        self.assertEqual(queue[2], p_light)
+
+    def test_get_queue_tiebreak_by_date(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        p_earlier = Patient.objects.create(
+            last_name='Ранний', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_heavy, physical_severity=self.physical_heavy,
+            status='waiting',
+            admission_date=timezone.now() - timedelta(hours=2)
+        )
+        p_later = Patient.objects.create(
+            last_name='Поздний', first_name='Тест',
+            date_of_birth=date(1990, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_heavy, physical_severity=self.physical_heavy,
+            status='waiting',
+            admission_date=timezone.now()
+        )
+        queue = list(DistributionService.get_queue())
+        self.assertEqual(queue[0], p_earlier)
+        self.assertEqual(queue[1], p_later)
+
     def test_gender_filtering(self):
         dept_male = Department.objects.create(
             name='Мужское отделение', profile='М',

@@ -33,6 +33,18 @@
                                 <td><span class="badge bg-{% if patient.physical_severity.level <= 2 %}success{% elif patient.physical_severity.level == 3 %}warning{% else %}danger{% endif %}">
                                     {{ patient.physical_severity }}
                                 </span></td></tr>
+                            <tr><td><strong>Приоритет очереди:</strong></td>
+                                <td>
+                                    {% if patient.severity_priority >= 7 %}
+                                    <span class="badge bg-danger">{{ patient.severity_priority_display }} ({{ patient.severity_priority }})</span>
+                                    {% elif patient.severity_priority >= 5 %}
+                                    <span class="badge bg-warning text-dark">{{ patient.severity_priority_display }} ({{ patient.severity_priority }})</span>
+                                    {% elif patient.severity_priority >= 3 %}
+                                    <span class="badge bg-info">{{ patient.severity_priority_display }} ({{ patient.severity_priority }})</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ patient.severity_priority_display }} ({{ patient.severity_priority }})</span>
+                                    {% endif %}
+                                </td></tr>
                         </table>
                     </div>
                 </div>

@@ -143,9 +143,18 @@ class DistributionService:
 
     @staticmethod
     def get_queue():
-        """Получение очереди ожидающих распределения."""
+        """
+        Получение очереди ожидающих распределения.
+        Порядок: чем тяжелее состояние пациента (сумма уровней псих. + физ. тяжести),
+        тем выше он в очереди. При равной тяжести — ранее поступившие первыми.
+        """
+        from django.db.models import F, Value, IntegerField
+        from django.db.models.functions import Coalesce
+
         return Patient.objects.filter(
             status='waiting'
         ).select_related(
             'gender', 'diagnosis', 'mental_severity', 'physical_severity'
-        ).order_by('-admission_date')
+        ).annotate(
+            priority_score=F('mental_severity__level') + F('physical_severity__level')
+        ).order_by('-priority_score', 'admission_date')

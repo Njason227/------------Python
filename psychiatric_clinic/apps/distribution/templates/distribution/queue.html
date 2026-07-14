@@ -11,11 +11,17 @@
     </form>
 </div>
 
+<div class="alert alert-info mt-3">
+    <i class="bi bi-info-circle"></strong> Пациенты расположены по приоритету:
+    чем тяжелее состояние (сумма психической и физической тяжести), тем выше в очереди.</em>
+</div>
+
 <div class="table-responsive mt-3">
     <table class="table table-hover table-sm">
         <thead>
             <tr>
                 <th>#</th>
+                <th>Приоритет</th>
                 <th>ФИО</th>
                 <th>Возраст</th>
                 <th>Пол</th>
@@ -28,8 +34,19 @@
         </thead>
         <tbody>
             {% for p in page_obj %}
-            <tr>
-                <td>{{ p.pk }}</td>
+            <tr class="{% if p.severity_priority >= 7 %}table-danger{% elif p.severity_priority >= 5 %}table-warning{% endif %}">
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    {% if p.severity_priority >= 7 %}
+                    <span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill"></i> {{ p.severity_priority_display }} ({{ p.severity_priority }})</span>
+                    {% elif p.severity_priority >= 5 %}
+                    <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> {{ p.severity_priority_display }} ({{ p.severity_priority }})</span>
+                    {% elif p.severity_priority >= 3 %}
+                    <span class="badge bg-info">{{ p.severity_priority_display }} ({{ p.severity_priority }})</span>
+                    {% else %}
+                    <span class="badge bg-secondary">{{ p.severity_priority_display }} ({{ p.severity_priority }})</span>
+                    {% endif %}
+                </td>
                 <td><a href="{% url 'patients:detail' pk=p.pk %}">{{ p.full_name }}</a></td>
                 <td>{{ p.age }} лет</td>
                 <td>{{ p.gender }}</td>
@@ -53,7 +70,7 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="9" class="text-center text-muted">Очередь пуста</td></tr>
+            <tr><td colspan="10" class="text-center text-muted">Очередь пуста</td></tr>
             {% endfor %}
         </tbody>
     </table>
