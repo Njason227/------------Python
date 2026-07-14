@@ -3,18 +3,17 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mt-3">
     <h4><i class="bi bi-list-check"></i> Очередь распределения ({{ page_obj.paginator.count }})</h4>
-    <form method="post" action="{% url 'distribution:auto_distribute_all' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Распределить всех пациентов автоматически?')">
-            <i class="bi bi-magic"></i> Распределить всех
-        </button>
-    </form>
+    <button type="button" class="btn btn-success btn-sm" id="distributeAllBtn">
+        <i class="bi bi-magic"></i> Распределить всех
+    </button>
 </div>
 
 <div class="alert alert-info mt-3">
-    <i class="bi bi-info-circle"></strong> Пациенты расположены по приоритету:
+    <i class="bi bi-info-circle"></i> <em>Пациенты расположены по приоритету:
     чем тяжелее состояние (сумма психической и физической тяжести), тем выше в очереди.</em>
 </div>
+
+<div id="alertContainer"></div>
 
 <div class="table-responsive mt-3">
     <table class="table table-hover table-sm">
@@ -63,10 +62,9 @@
                 </td>
                 <td><small>{{ p.admission_date|date:"d.m.Y H:i" }}</small></td>
                 <td>
-                    <a href="{% url 'distribution:auto_distribute' patient_id=p.pk %}" class="btn btn-sm btn-success"
-                       onclick="return confirm('Распределить пациента автоматически?')">
+                    <button class="btn btn-sm btn-success distribute-btn" data-patient-id="{{ p.pk }}">
                         <i class="bi bi-magic"></i> Распределить
-                    </a>
+                    </button>
                 </td>
             </tr>
             {% empty %}
@@ -93,4 +91,116 @@
     </ul>
 </nav>
 {% endif %}
+
+<div class="modal fade" id="bedsFullModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Нет свободных мест</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modalMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Нет</button>
+                <a id="modalManualLink" href="#" class="btn btn-primary">Да</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="errorModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle"></i> Ошибка</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+
+function showAlert(message, type) {
+    const container = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-' + type + ' alert-dismissible fade show mt-2';
+    alert.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    container.appendChild(alert);
+    setTimeout(() => { if (alert.parentNode) alert.remove(); }, 5000);
+}
+
+function handleDistributeResponse(data) {
+    if (data.status === 'assigned') {
+        showAlert('<i class="bi bi-check-circle"></i> ' + data.message, 'success');
+        setTimeout(() => location.reload(), 1200);
+    } else if (data.status === 'full') {
+        document.getElementById('modalMessage').textContent = data.message;
+        document.getElementById('modalManualLink').href =
+            '{% url "distribution:manual_assign" %}?patient_id=' + data.patient_id;
+        new bootstrap.Modal(document.getElementById('bedsFullModal')).show();
+    } else if (data.status === 'not_found') {
+        document.getElementById('errorMessage').textContent = data.message;
+        new bootstrap.Modal(document.getElementById('errorModal')).show();
+    } else {
+        document.getElementById('errorMessage').textContent = data.message || 'Неизвестная ошибка.';
+        new bootstrap.Modal(document.getElementById('errorModal')).show();
+    }
+}
+
+document.querySelectorAll('.distribute-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var patientId = this.getAttribute('data-patient-id');
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        var self = this;
+        fetch('{% url "distribution:auto_distribute_check" patient_id=0 %}'.replace('0', patientId), {
+            headers: { 'X-CSRFToken': CSRF_TOKEN }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { handleDistributeResponse(data); self.disabled = false; self.innerHTML = '<i class="bi bi-magic"></i> Распределить'; })
+        .catch(function() { document.getElementById('errorMessage').textContent = 'Ошибка сети.'; new bootstrap.Modal(document.getElementById('errorModal')).show(); self.disabled = false; self.innerHTML = '<i class="bi bi-magic"></i> Распределить'; });
+    });
+});
+
+document.getElementById('distributeAllBtn').addEventListener('click', function() {
+    if (!confirm('Распределить всех пациентов автоматически?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Распределение...';
+    var self = this;
+    var waitingPatients = document.querySelectorAll('.distribute-btn');
+    var promises = [];
+    waitingPatients.forEach(function(btn) {
+        var patientId = btn.getAttribute('data-patient-id');
+        promises.push(
+            fetch('{% url "distribution:auto_distribute_check" patient_id=0 %}'.replace('0', patientId), {
+                headers: { 'X-CSRFToken': CSRF_TOKEN }
+            }).then(function(r) { return r.json(); })
+        );
+    });
+    Promise.all(promises).then(function(results) {
+        var success = 0, fail = 0;
+        results.forEach(function(data) {
+            if (data.status === 'assigned') success++;
+            else fail++;
+        });
+        showAlert('<i class="bi bi-check-circle"></i> Массовое распределение: распределено ' + success + ', без распределения ' + fail + '.', fail > 0 ? 'warning' : 'success');
+        self.disabled = false;
+        self.innerHTML = '<i class="bi bi-magic"></i> Распределить всех';
+        setTimeout(() => location.reload(), 1500);
+    }).catch(function() {
+        self.disabled = false;
+        self.innerHTML = '<i class="bi bi-magic"></i> Распределить всех';
+    });
+});
+</script>
 {% endblock %}

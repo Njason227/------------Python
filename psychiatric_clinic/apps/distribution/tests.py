@@ -1,3 +1,4 @@
+import json
 from django.test import TestCase, Client
 from django.urls import reverse
 from datetime import date, timedelta
@@ -17,25 +18,35 @@ class DistributionServiceTest(TestCase):
         self.mental_heavy = MentalSeverity.objects.create(name='Тяжёлая', level=3)
         self.mental_extreme = MentalSeverity.objects.create(name='Крайне тяжёлая', level=4)
         self.physical_good = PhysicalSeverity.objects.create(name='Удовлетворительное', level=1)
+        self.physical_moderate = PhysicalSeverity.objects.create(name='Средней тяжести', level=2)
         self.physical_heavy = PhysicalSeverity.objects.create(name='Тяжёлое', level=3)
+        self.physical_critical = PhysicalSeverity.objects.create(name='Критическое', level=4)
         self.diagnosis_schizo = Diagnosis.objects.create(
             code='F20', name='Шизофрения', block='F20-F29', chapter='Тест'
         )
         self.diagnosis_depression = Diagnosis.objects.create(
             code='F32', name='Депрессия', block='F30-F39', chapter='Тест'
         )
+        self.diagnosis_anxiety = Diagnosis.objects.create(
+            code='F41', name='Тревожное расстройство', block='F40-F48', chapter='Тест'
+        )
         self.dept_schizo = Department.objects.create(
-            name='Отделение шизофрении', profile='F20-F29',
+            name='Отделение шизофрении', profile='F20-F29: Шизофрения',
             gender_restriction='ANY', age_category='ADULT',
             total_beds=10, occupied_beds=0
         )
         self.dept_depression = Department.objects.create(
-            name='Отделение депрессии', profile='F30-F39',
+            name='Отделение депрессии', profile='F30-F39: Аффективные',
             gender_restriction='ANY', age_category='ADULT',
             total_beds=10, occupied_beds=0
         )
+        self.dept_icu = Department.objects.create(
+            name='Отделение интенсивной терапии', profile='Крайне тяжёлые',
+            gender_restriction='ANY', age_category='ANY',
+            total_beds=5, occupied_beds=0
+        )
         self.dept_child = Department.objects.create(
-            name='Детское отделение', profile='Дети',
+            name='Детское отделение', profile='F80-F98: Дети',
             gender_restriction='ANY', age_category='CHILD',
             total_beds=10, occupied_beds=0
         )
@@ -43,21 +54,51 @@ class DistributionServiceTest(TestCase):
             username='doctor', password='doctor123', role='doctor'
         )
 
-    def test_find_suitable_department_by_diagnosis(self):
+    def test_find_by_diagnosis_block_in_profile(self):
         patient = Patient.objects.create(
             last_name='Тест', first_name='Шизофрения',
             date_of_birth=date(1985, 1, 1),
             gender=self.gender_m, diagnosis=self.diagnosis_schizo,
             mental_severity=self.mental_light, physical_severity=self.physical_good,
         )
-        rule = DistributionRule.objects.create(
-            department=self.dept_schizo, diagnosis=self.diagnosis_schizo,
-            priority=1
+        dept, reasons = DistributionService.find_suitable_department(patient)
+        self.assertEqual(dept, self.dept_schizo)
+
+    def test_find_by_profile_diagnoses_m2m(self):
+        self.dept_schizo.profile_diagnoses.add(self.diagnosis_schizo)
+        patient = Patient.objects.create(
+            last_name='Тест', first_name='М2М',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_light, physical_severity=self.physical_good,
         )
         dept, reasons = DistributionService.find_suitable_department(patient)
         self.assertEqual(dept, self.dept_schizo)
 
+    def test_find_depression_goes_to_affective_dept(self):
+        patient = Patient.objects.create(
+            last_name='Тест', first_name='Депрессия',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_depression,
+            mental_severity=self.mental_light, physical_severity=self.physical_good,
+        )
+        dept, reasons = DistributionService.find_suitable_department(patient)
+        self.assertEqual(dept, self.dept_depression)
+
     def test_find_no_suitable_department(self):
+        dept_no_beds = Department.objects.create(
+            name='Пустое', profile='ZZZ-ZZZ',
+            gender_restriction='ANY', age_category='ADULT',
+            total_beds=0, occupied_beds=0
+        )
+        self.dept_schizo.occupied_beds = 10
+        self.dept_schizo.save()
+        self.dept_depression.occupied_beds = 10
+        self.dept_depression.save()
+        self.dept_icu.occupied_beds = 5
+        self.dept_icu.save()
+        self.dept_child.occupied_beds = 10
+        self.dept_child.save()
         patient = Patient.objects.create(
             last_name='Нет', first_name='Отделения',
             date_of_birth=date(1985, 1, 1),
@@ -66,6 +107,38 @@ class DistributionServiceTest(TestCase):
         )
         dept, reasons = DistributionService.find_suitable_department(patient)
         self.assertIsNone(dept)
+
+    def test_extreme_severity_goes_to_icu(self):
+        patient = Patient.objects.create(
+            last_name='Крайне', first_name='Тяжёлый',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_extreme, physical_severity=self.physical_critical,
+        )
+        dept, reasons = DistributionService.find_suitable_department(patient)
+        self.assertEqual(dept, self.dept_icu)
+
+    def test_high_severity_goes_to_icu(self):
+        patient = Patient.objects.create(
+            last_name='Тяжёлый', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_heavy, physical_severity=self.physical_heavy,
+        )
+        dept, reasons = DistributionService.find_suitable_department(patient)
+        self.assertEqual(dept, self.dept_icu)
+
+    def test_icu_full_high_severity_falls_to_profile(self):
+        self.dept_icu.occupied_beds = 5
+        self.dept_icu.save()
+        patient = Patient.objects.create(
+            last_name='Тяжёлый', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender_m, diagnosis=self.diagnosis_schizo,
+            mental_severity=self.mental_heavy, physical_severity=self.physical_heavy,
+        )
+        dept, reasons = DistributionService.find_suitable_department(patient)
+        self.assertEqual(dept, self.dept_schizo)
 
     def test_assign_patient(self):
         patient = Patient.objects.create(
@@ -105,16 +178,20 @@ class DistributionServiceTest(TestCase):
             gender=self.gender_m, diagnosis=self.diagnosis_schizo,
             mental_severity=self.mental_light, physical_severity=self.physical_good,
         )
-        rule = DistributionRule.objects.create(
-            department=self.dept_schizo, diagnosis=self.diagnosis_schizo,
-            priority=1
-        )
         dept, message, reasons = DistributionService.auto_distribute(patient, self.user)
         self.assertEqual(dept, self.dept_schizo)
         patient.refresh_from_db()
         self.assertEqual(patient.status, 'assigned')
 
     def test_auto_distribute_no_match(self):
+        self.dept_schizo.occupied_beds = 10
+        self.dept_schizo.save()
+        self.dept_depression.occupied_beds = 10
+        self.dept_depression.save()
+        self.dept_icu.occupied_beds = 5
+        self.dept_icu.save()
+        self.dept_child.occupied_beds = 10
+        self.dept_child.save()
         patient = Patient.objects.create(
             last_name='Нет', first_name='Совпадения',
             date_of_birth=date(1985, 1, 1),
@@ -195,12 +272,9 @@ class DistributionServiceTest(TestCase):
 
     def test_gender_filtering(self):
         dept_male = Department.objects.create(
-            name='Мужское отделение', profile='М',
+            name='Мужское отделение', profile='F20-F29: М',
             gender_restriction='M', age_category='ADULT',
             total_beds=10, occupied_beds=0
-        )
-        rule = DistributionRule.objects.create(
-            department=dept_male, priority=1, gender='M'
         )
         female_patient = Patient.objects.create(
             last_name='Женщина', first_name='Тест',
@@ -212,9 +286,6 @@ class DistributionServiceTest(TestCase):
         self.assertNotEqual(dept, dept_male)
 
     def test_age_category_filtering(self):
-        rule = DistributionRule.objects.create(
-            department=self.dept_child, priority=1, age_category='CHILD'
-        )
         adult_patient = Patient.objects.create(
             last_name='Взрослый', first_name='Тест',
             date_of_birth=date(1985, 1, 1),
@@ -255,9 +326,6 @@ class DistributionViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_auto_distribute_view(self):
-        rule = DistributionRule.objects.create(
-            department=self.dept, diagnosis=self.diagnosis, priority=1
-        )
         response = self.client.get(
             reverse('distribution:auto_distribute', args=[self.patient.pk])
         )
@@ -266,9 +334,6 @@ class DistributionViewsTest(TestCase):
         self.assertEqual(self.patient.status, 'assigned')
 
     def test_auto_distribute_all_view(self):
-        rule = DistributionRule.objects.create(
-            department=self.dept, diagnosis=self.diagnosis, priority=1
-        )
         response = self.client.post(reverse('distribution:auto_distribute_all'))
         self.assertEqual(response.status_code, 302)
 
@@ -310,3 +375,75 @@ class DistributionViewsTest(TestCase):
         self.client.logout()
         response = self.client.get(reverse('distribution:queue'))
         self.assertEqual(response.status_code, 302)
+
+
+class AutoDistributeCheckViewTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='doctor', password='doctor123', role='doctor'
+        )
+        self.client.login(username='doctor', password='doctor123')
+        self.gender = Gender.objects.create(name='Мужской')
+        self.mental = MentalSeverity.objects.create(name='Лёгкая', level=1)
+        self.physical = PhysicalSeverity.objects.create(name='Удовлетворительное', level=1)
+        self.diagnosis = Diagnosis.objects.create(
+            code='F20', name='Шизофрения', block='F20-F29', chapter='Тест'
+        )
+        self.dept = Department.objects.create(
+            name='Отделение', profile='F20-F29',
+            total_beds=10, occupied_beds=0
+        )
+        self.patient = Patient.objects.create(
+            last_name='Пациент', first_name='Тест',
+            date_of_birth=date(1985, 1, 1),
+            gender=self.gender, diagnosis=self.diagnosis,
+            mental_severity=self.mental, physical_severity=self.physical,
+            status='waiting'
+        )
+
+    def test_check_assigned(self):
+        response = self.client.get(
+            reverse('distribution:auto_distribute_check', args=[self.patient.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'assigned')
+        self.assertIn('department_name', data)
+
+    def test_check_full_department(self):
+        self.dept.occupied_beds = 10
+        self.dept.save()
+        response = self.client.get(
+            reverse('distribution:auto_distribute_check', args=[self.patient.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'full')
+        self.assertIn('department_name', data)
+        self.assertIn('patient_id', data)
+
+    def test_check_not_found(self):
+        self.dept.occupied_beds = 10
+        self.dept.save()
+        self.dept.profile = 'ZZZ-ZZZ'
+        self.dept.save()
+        Department.objects.filter(name='Отделение депрессии').update(occupied_beds=10)
+        Department.objects.filter(name='Отделение интенсивной терапии').update(occupied_beds=5)
+        Department.objects.filter(name='Детское отделение').update(occupied_beds=10)
+        response = self.client.get(
+            reverse('distribution:auto_distribute_check', args=[self.patient.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'not_found')
+
+    def test_check_already_assigned(self):
+        self.patient.status = 'assigned'
+        self.patient.save()
+        response = self.client.get(
+            reverse('distribution:auto_distribute_check', args=[self.patient.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'error')

@@ -1,92 +1,237 @@
-from apps.references.models import Department
+from apps.references.models import Department, Diagnosis
 from apps.patients.models import Patient, AssignmentLog
-from .models import DistributionRule
 
 
 class DistributionService:
     """Сервис распределения пациентов по отделениям."""
 
+    ICU_KEYWORDS = ['интенсивн', 'реанимац', 'ИТ']
+
+    @staticmethod
+    def _diagnosis_matches_department(patient, dept):
+        """Проверяет, соответствует ли диагноз пациента профилю отделения."""
+        diagnosis = patient.diagnosis
+        code = diagnosis.code
+        block = diagnosis.block
+        prefix3 = code[:3]
+
+        if dept.profile_diagnoses.filter(pk=diagnosis.pk).exists():
+            return True
+
+        if dept.profile_diagnoses.filter(code__startswith=prefix3).exists():
+            return True
+
+        if block and block in dept.profile:
+            return True
+
+        if prefix3 in dept.profile:
+            return True
+
+        return False
+
+    @staticmethod
+    def _is_icu(dept):
+        return any(kw in dept.name.lower() for kw in DistributionService.ICU_KEYWORDS)
+
+    @staticmethod
+    def _is_extreme_severity(patient):
+        return patient.mental_severity.level == 4 and patient.physical_severity.level == 4
+
+    @staticmethod
+    def _is_high_severity(patient):
+        return patient.mental_severity.level >= 3 and patient.physical_severity.level >= 3
+
+    @staticmethod
+    def _gender_compatible(patient, dept):
+        patient_gender = 'M' if patient.gender.name == 'Мужской' else 'F'
+        if dept.gender_restriction == 'ANY':
+            return True
+        return dept.gender_restriction == patient_gender
+
+    @staticmethod
+    def _age_compatible(patient, dept):
+        if dept.age_category == 'ANY':
+            return True
+        return dept.age_category == patient.age_category
+
     @staticmethod
     def find_suitable_department(patient):
         """
-        Поиск подходящего отделения для пациента на основании правил распределения.
+        Автоматический поиск подходящего отделения для пациента.
+        Логика:
+        1. Крайне тяжёлые (4+4) → ИТ, если есть места.
+        2. Тяжёлые (3+3 и выше) → ИТ, если есть места.
+        3. Диагноз совпадает с профилем отделения → профильное отделение.
+        4. Любое отделение с местами и подходящим полом/возрастом.
         Возвращает (отделение, список причин) или (None, список причин отказа).
         """
-        rules = DistributionRule.objects.filter(
-            is_active=True
-        ).select_related('department', 'diagnosis').order_by('priority', '-department__occupied_beds')
-
         patient_gender = 'M' if patient.gender.name == 'Мужской' else 'F'
         patient_age_cat = patient.age_category
 
-        for rule in rules:
-            dept = rule.department
+        active_depts = Department.objects.filter(is_active=True)
 
-            if not dept.is_active:
+        if DistributionService._is_extreme_severity(patient):
+            icu = active_depts.filter(
+                gender_restriction__in=['ANY', patient_gender],
+            ).filter(
+                age_category__in=['ANY', patient_age_cat]
+            ).filter(name__icontains='интенсивн').first()
+
+            if not icu:
+                icu = active_depts.filter(
+                    gender_restriction__in=['ANY', patient_gender],
+                    age_category__in=['ANY', patient_age_cat],
+                ).filter(name__icontains='реанимац').first()
+
+            if icu and icu.available_beds > 0:
+                reasons = [
+                    'Крайне тяжёлое состояние (4+4) → отделение интенсивной терапии',
+                    f'Пол: {patient.gender.name}',
+                    f'Возрастная категория: {patient.age_category_display}',
+                    f'Свободных коек: {icu.available_beds}',
+                ]
+                return icu, reasons
+
+        if DistributionService._is_high_severity(patient):
+            icu = active_depts.filter(
+                gender_restriction__in=['ANY', patient_gender],
+                age_category__in=['ANY', patient_age_cat],
+            ).filter(name__icontains='интенсивн').first()
+
+            if not icu:
+                icu = active_depts.filter(
+                    gender_restriction__in=['ANY', patient_gender],
+                    age_category__in=['ANY', patient_age_cat],
+                ).filter(name__icontains='реанимац').first()
+
+            if icu and icu.available_beds > 0:
+                reasons = [
+                    f'Тяжёлое состояние ({patient.mental_severity.level}+{patient.physical_severity.level}) → ИТ',
+                    f'Пол: {patient.gender.name}',
+                    f'Возрастная категория: {patient.age_category_display}',
+                    f'Свободных коек: {icu.available_beds}',
+                ]
+                return icu, reasons
+
+        profile_depts = []
+        for dept in active_depts:
+            if not DistributionService._gender_compatible(patient, dept):
                 continue
-
-            if dept.available_beds <= 0:
+            if not DistributionService._age_compatible(patient, dept):
                 continue
+            if DistributionService._diagnosis_matches_department(patient, dept):
+                profile_depts.append(dept)
 
-            reasons = []
+        profile_depts.sort(key=lambda d: d.available_beds, reverse=True)
+        for dept in profile_depts:
+            if dept.available_beds > 0:
+                reasons = [
+                    f'Диагноз {patient.diagnosis.code} ({patient.diagnosis.block}) совпадает с профилем отделения',
+                    f'Пол: {patient.gender.name}',
+                    f'Возрастная категория: {patient.age_category_display}',
+                    f'Свободных коек: {dept.available_beds}',
+                ]
+                return dept, reasons
 
-            if rule.gender and rule.gender != 'ANY':
-                if rule.gender != patient_gender:
-                    continue
-
-            if rule.age_category and rule.age_category != 'ANY':
-                if rule.age_category != patient_age_cat:
-                    continue
-
-            if rule.diagnosis:
-                diagnosis_code = patient.diagnosis.code
-                rule_code = rule.diagnosis.code
-                if not (diagnosis_code.startswith(rule_code[:3]) or diagnosis_code == rule_code):
-                    continue
-
-            if not (rule.min_mental_severity <= patient.mental_severity.level <= rule.max_mental_severity):
+        fallback_depts = []
+        for dept in active_depts:
+            if not DistributionService._gender_compatible(patient, dept):
                 continue
-
-            if not (rule.min_physical_severity <= patient.physical_severity.level <= rule.max_physical_severity):
+            if not DistributionService._age_compatible(patient, dept):
                 continue
-
-            if dept.gender_restriction != 'ANY' and dept.gender_restriction != patient_gender:
+            if DistributionService._is_icu(dept):
                 continue
+            fallback_depts.append(dept)
 
-            if dept.age_category != 'ANY' and dept.age_category != patient_age_cat:
+        fallback_depts.sort(key=lambda d: d.available_beds, reverse=True)
+        for dept in fallback_depts:
+            if dept.available_beds > 0:
+                reasons = [
+                    'Нет профильного отделения → отделение общего типа',
+                    f'Пол: {patient.gender.name}',
+                    f'Возрастная категория: {patient.age_category_display}',
+                    f'Свободных коек: {dept.available_beds}',
+                ]
+                return dept, reasons
+
+        return None, ['Нет подходящих отделений со свободными коек.']
+
+    @staticmethod
+    def find_best_department(patient):
+        """
+        Поиск лучшего подходящего отделения для пациента (включая занятые).
+        Возвращает (отделение, список причин) или (None, список причин отказа).
+        Используется для проверки возможности распределения (API).
+        Не использует общий fallback — только ИТ и профильные отделения.
+        """
+        patient_gender = 'M' if patient.gender.name == 'Мужской' else 'F'
+        patient_age_cat = patient.age_category
+
+        active_depts = Department.objects.filter(is_active=True)
+
+        if DistributionService._is_extreme_severity(patient):
+            icu = active_depts.filter(
+                gender_restriction__in=['ANY', patient_gender],
+            ).filter(
+                age_category__in=['ANY', patient_age_cat]
+            ).filter(name__icontains='интенсивн').first()
+
+            if not icu:
+                icu = active_depts.filter(
+                    gender_restriction__in=['ANY', patient_gender],
+                    age_category__in=['ANY', patient_age_cat],
+                ).filter(name__icontains='реанимац').first()
+
+            if icu:
+                reasons = [
+                    'Крайне тяжёлое состояние (4+4) → отделение интенсивной терапии',
+                    f'Пол: {patient.gender.name}',
+                    f'Возрастная категория: {patient.age_category_display}',
+                    f'Свободных коек: {icu.available_beds}',
+                ]
+                return icu, reasons
+
+        if DistributionService._is_high_severity(patient):
+            icu = active_depts.filter(
+                gender_restriction__in=['ANY', patient_gender],
+                age_category__in=['ANY', patient_age_cat],
+            ).filter(name__icontains='интенсивн').first()
+
+            if not icu:
+                icu = active_depts.filter(
+                    gender_restriction__in=['ANY', patient_gender],
+                    age_category__in=['ANY', patient_age_cat],
+                ).filter(name__icontains='реанимац').first()
+
+            if icu:
+                reasons = [
+                    f'Тяжёлое состояние ({patient.mental_severity.level}+{patient.physical_severity.level}) → ИТ',
+                    f'Пол: {patient.gender.name}',
+                    f'Возрастная категория: {patient.age_category_display}',
+                    f'Свободных коек: {icu.available_beds}',
+                ]
+                return icu, reasons
+
+        profile_depts = []
+        for dept in active_depts:
+            if not DistributionService._gender_compatible(patient, dept):
                 continue
-
-            reasons.append(f'Правило: приоритет {rule.priority}')
-            if rule.diagnosis:
-                reasons.append(f'Диагноз совпадает с профилем отделения ({rule.diagnosis.code})')
-            reasons.append(f'Пол: соответствует ({patient.gender.name})')
-            reasons.append(f'Возрастная категория: {patient.age_category_display}')
-            reasons.append(f'Тяжесть псих. состояния: уровень {patient.mental_severity.level}')
-            reasons.append(f'Тяжесть физ. состояния: уровень {patient.physical_severity.level}')
-            reasons.append(f'Свободных коек: {dept.available_beds}')
-
-            return dept, reasons
-
-        fallback_rules = DistributionRule.objects.filter(
-            is_active=True,
-            department__is_active=True,
-        ).select_related('department').order_by('priority')
-
-        for rule in fallback_rules:
-            dept = rule.department
-            if dept.available_beds <= 0:
+            if not DistributionService._age_compatible(patient, dept):
                 continue
-            if dept.gender_restriction != 'ANY' and dept.gender_restriction != patient_gender:
-                continue
-            if dept.age_category != 'ANY' and dept.age_category != patient_age_cat:
-                continue
+            if DistributionService._diagnosis_matches_department(patient, dept):
+                profile_depts.append(dept)
+
+        profile_depts.sort(key=lambda d: d.available_beds, reverse=True)
+        for dept in profile_depts:
             reasons = [
-                'Отделение выбрано по общему правилу (нет точного совпадения)',
+                f'Диагноз {patient.diagnosis.code} ({patient.diagnosis.block}) совпадает с профилем отделения',
+                f'Пол: {patient.gender.name}',
+                f'Возрастная категория: {patient.age_category_display}',
                 f'Свободных коек: {dept.available_beds}',
             ]
             return dept, reasons
 
-        return None, ['Нет подходящих отделений со свободными коек.']
+        return None, ['Нет подходящих отделений.']
 
     @staticmethod
     def assign_patient(patient, department, user, reason='', is_automatic=False):

@@ -76,10 +76,10 @@
                         <i class="bi bi-pencil"></i> Редактировать
                     </a>
                     {% if patient.status == 'waiting' %}
-                    <a href="{% url 'distribution:auto_distribute' patient_id=patient.pk %}" class="btn btn-success btn-sm">
+                    <button class="btn btn-success btn-sm" id="autoDistributeBtn">
                         <i class="bi bi-magic"></i> Авто-распределить
-                    </a>
-                    <a href="{% url 'distribution:manual_assign' %}" class="btn btn-info btn-sm text-white">
+                    </button>
+                    <a href="{% url 'distribution:manual_assign' %}?patient_id={{ patient.pk }}" class="btn btn-info btn-sm text-white">
                         <i class="bi bi-arrow-left-right"></i> Ручное распределение
                     </a>
                     {% endif %}
@@ -121,4 +121,99 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="bedsFullModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Нет свободных мест</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modalMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Нет</button>
+                <a id="modalManualLink" href="#" class="btn btn-primary">Да</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="errorModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle"></i> Ошибка</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Успешно</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="successMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <a id="successDetailLink" href="#" class="btn btn-primary">OK</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var btn = document.getElementById('autoDistributeBtn');
+    if (!btn) return;
+    var CSRF_TOKEN = '{{ csrf_token }}';
+    var PATIENT_ID = {{ patient.pk }};
+
+    btn.addEventListener('click', function() {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        fetch('{% url "distribution:auto_distribute_check" patient_id=patient.pk %}', {
+            headers: { 'X-CSRFToken': CSRF_TOKEN }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'assigned') {
+                document.getElementById('successMessage').textContent = data.message;
+                document.getElementById('successDetailLink').href = '{% url "patients:detail" pk=patient.pk %}';
+                new bootstrap.Modal(document.getElementById('successModal')).show();
+            } else if (data.status === 'full') {
+                document.getElementById('modalMessage').textContent = data.message;
+                document.getElementById('modalManualLink').href =
+                    '{% url "distribution:manual_assign" %}?patient_id=' + data.patient_id;
+                new bootstrap.Modal(document.getElementById('bedsFullModal')).show();
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic"></i> Авто-распределить';
+            } else {
+                document.getElementById('errorMessage').textContent = data.message;
+                new bootstrap.Modal(document.getElementById('errorModal')).show();
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic"></i> Авто-распределить';
+            }
+        })
+        .catch(function() {
+            document.getElementById('errorMessage').textContent = 'Ошибка сети.';
+            new bootstrap.Modal(document.getElementById('errorModal')).show();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-magic"></i> Авто-распределить';
+        });
+    });
+})();
+</script>
 {% endblock %}
