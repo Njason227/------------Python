@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Главная{% endblock %}
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <h2><i class="bi bi-hospital"></i> Система распределения психиатрических пациентов</h2>
+        <p class="lead text-muted">Приёмное отделение психиатрической клиники</p>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+<div class="row mt-4 justify-content-center">
+    <div class="col-md-3 mb-3">
+        <a href="{% url 'reports:dashboard' %}" class="card text-decoration-none shadow-sm border-primary h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-speedometer2 display-4 text-primary"></i>
+                <h5 class="card-title mt-2">Панель управления</h5>
+                <p class="text-muted">Статистика и загрузка</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="{% url 'patients:list' %}" class="card text-decoration-none shadow-sm border-success h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-people display-4 text-success"></i>
+                <h5 class="card-title mt-2">Пациенты</h5>
+                <p class="text-muted">Регистрация и карточки</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="{% url 'distribution:queue' %}" class="card text-decoration-none shadow-sm border-warning h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-list-check display-4 text-warning"></i>
+                <h5 class="card-title mt-2">Очередь</h5>
+                <p class="text-muted">Ожидающие распределения</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 mb-3">
+        <a href="{% url 'distribution:manual_assign' %}" class="card text-decoration-none shadow-sm border-info h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-left-right display-4 text-info"></i>
+                <h5 class="card-title mt-2">Распределение</h5>
+                <p class="text-muted">Ручное и автоматическое</p>
+            </div>
+        </a>
+    </div>
+</div>
+{% else %}
+<div class="row mt-4 justify-content-center">
+    <div class="col-md-4 text-center">
+        <a href="{% url 'accounts:login' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-box-arrow-in-right"></i> Войти в систему
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

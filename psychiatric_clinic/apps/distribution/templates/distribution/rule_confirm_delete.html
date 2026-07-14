@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Удаление правила{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-5">
+        <div class="card border-danger shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Удаление правила</h5>
+            </div>
+            <div class="card-body">
+                <p>Удалить правило распределения?</p>
+                <p class="fw-bold">{{ rule }}</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Удалить
+                        </button>
+                        <a href="{% url 'distribution:rules_list' %}" class="btn btn-secondary">Отмена</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Пациенты{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <h4><i class="bi bi-people"></i> Пациенты</h4>
+    <a href="{% url 'patients:create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Зарегистрировать пациента
+    </a>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                {{ filter_form.q }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.status }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.gender }}
+            </div>
+            <div class="col-md-2">
+                {{ filter_form.age_category }}
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'patients:list' %}" class="btn btn-outline-secondary w-100">Сбросить</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="table-responsive mt-3">
+    <table class="table table-hover table-sm">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>ФИО</th>
+                <th>Возраст</th>
+                <th>Пол</th>
+                <th>Диагноз</th>
+                <th>Псих. тяжесть</th>
+                <th>Физ. тяжесть</th>
+                <th>Статус</th>
+                <th>Отделение</th>
+                <th>Дата поступления</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in page_obj %}
+            <tr>
+                <td>{{ p.pk }}</td>
+                <td>
+                    <a href="{% url 'patients:detail' pk=p.pk %}">{{ p.full_name }}</a>
+                </td>
+                <td>{{ p.age }} лет</td>
+                <td>{{ p.gender }}</td>
+                <td><small>{{ p.diagnosis.code }} — {{ p.diagnosis.name|truncatechars:40 }}</small></td>
+                <td>
+                    <span class="badge bg-{% if p.mental_severity.level <= 2 %}success{% elif p.mental_severity.level == 3 %}warning{% else %}danger{% endif %}">
+                        {{ p.mental_severity.name }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge bg-{% if p.physical_severity.level <= 2 %}success{% elif p.physical_severity.level == 3 %}warning{% else %}danger{% endif %}">
+                        {{ p.physical_severity.name }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge badge-status bg-{% if p.status == 'waiting' %}secondary{% elif p.status == 'assigned' %}info{% elif p.status == 'hospitalized' %}success{% else %}dark{% endif %}">
+                        {{ p.get_status_display }}
+                    </span>
+                </td>
+                <td>{{ p.department.name|default:"—" }}</td>
+                <td><small>{{ p.admission_date|date:"d.m.Y H:i" }}</small></td>
+                <td>
+                    <a href="{% url 'patients:detail' pk=p.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="11" class="text-center text-muted">Пациентов нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">&laquo;</a>
+        </li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

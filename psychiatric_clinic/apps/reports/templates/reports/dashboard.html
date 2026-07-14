@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Панель управления{% endblock %}
+{% block content %}
+<h4 class="mt-3"><i class="bi bi-speedometer2"></i> Панель управления</h4>
+
+<div class="row mt-3">
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card primary shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Всего пациентов</h6>
+                        <h2>{{ total_patients }}</h2>
+                    </div>
+                    <i class="bi bi-people text-primary display-5"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card warning shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Ожидают</h6>
+                        <h2>{{ waiting }}</h2>
+                    </div>
+                    <i class="bi bi-hourglass-split text-warning display-5"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card info shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Распределены</h6>
+                        <h2>{{ assigned }}</h2>
+                    </div>
+                    <i class="bi bi-arrow-left-right text-info display-5"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card success shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Госпитализированы</h6>
+                        <h2>{{ hospitalized }}</h2>
+                    </div>
+                    <i class="bi bi-hospital text-success display-5"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">Поступления</h6>
+                <p><strong>Сегодня:</strong> {{ admissions_today }}</p>
+                <p><strong>За неделю:</strong> {{ admissions_week }}</p>
+                <p><strong>За месяц:</strong> {{ admissions_month }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">По полу</h6>
+                {% for g in gender_stats %}
+                <p><strong>{{ g.gender__name|default:"Не указан" }}:</strong> {{ g.count }}</p>
+                {% empty %}
+                <p class="text-muted">Нет данных</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">По возрасту</h6>
+                <p><strong>До 18 лет:</strong> {{ age_child }}</p>
+                <p><strong>18+ лет:</strong> {{ age_adult }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-building"></i> Загрузка отделений</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Отделение</th>
+                                <th>Коек</th>
+                                <th>Занято</th>
+                                <th>Свободно</th>
+                                <th>Загрузка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ds in dept_stats %}
+                            <tr>
+                                <td>{{ ds.department.name }}</td>
+                                <td>{{ ds.total_beds }}</td>
+                                <td>{{ ds.occupied_beds }}</td>
+                                <td>{{ ds.available_beds }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="occupancy-bar flex-grow-1">
+                                            <div class="fill {% if ds.occupancy_percent < 50 %}occupancy-low{% elif ds.occupancy_percent < 80 %}occupancy-medium{% else %}occupancy-high{% endif %}"
+                                                 style="width: {{ ds.occupancy_percent }}%"></div>
+                                        </div>
+                                        <small>{{ ds.occupancy_percent }}%</small>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-6 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">По тяжести психического состояния</h6>
+            </div>
+            <div class="card-body">
+                {% for s in mental_stats %}
+                <div class="d-flex justify-content-between mb-1">
+                    <span>{{ s.mental_severity__name }}</span>
+                    <span class="badge bg-info">{{ s.count }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted">Нет данных</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">По тяжести физического состояния</h6>
+            </div>
+            <div class="card-body">
+                {% for s in physical_stats %}
+                <div class="d-flex justify-content-between mb-1">
+                    <span>{{ s.physical_severity__name }}</span>
+                    <span class="badge bg-info">{{ s.count }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted">Нет данных</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3 mb-4">
+    <a href="{% url 'reports:export_csv' %}" class="btn btn-outline-success">
+        <i class="bi bi-download"></i> Экспорт в CSV
+    </a>
+</div>
+{% endblock %}

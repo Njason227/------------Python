@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.full_name }}{% endblock %}
+{% block content %}
+<div class="row mt-3">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-person"></i> {{ patient.full_name }}</h5>
+                <span class="badge bg-{% if patient.status == 'waiting' %}secondary{% elif patient.status == 'assigned' %}info{% elif patient.status == 'hospitalized' %}success{% else %}dark{% endif %} fs-6">
+                    {{ patient.get_status_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Персональные данные</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>ФИО:</strong></td><td>{{ patient.full_name }}</td></tr>
+                            <tr><td><strong>Дата рождения:</strong></td><td>{{ patient.date_of_birth|date:"d.m.Y" }} ({{ patient.age }} лет)</td></tr>
+                            <tr><td><strong>Возрастная категория:</strong></td><td>{{ patient.age_category_display }}</td></tr>
+                            <tr><td><strong>Пол:</strong></td><td>{{ patient.gender }}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Медицинские данные</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Диагноз:</strong></td><td>{{ patient.diagnosis }}</td></tr>
+                            <tr><td><strong>Псих. тяжесть:</strong></td>
+                                <td><span class="badge bg-{% if patient.mental_severity.level <= 2 %}success{% elif patient.mental_severity.level == 3 %}warning{% else %}danger{% endif %}">
+                                    {{ patient.mental_severity }}
+                                </span></td></tr>
+                            <tr><td><strong>Физ. тяжесть:</strong></td>
+                                <td><span class="badge bg-{% if patient.physical_severity.level <= 2 %}success{% elif patient.physical_severity.level == 3 %}warning{% else %}danger{% endif %}">
+                                    {{ patient.physical_severity }}
+                                </span></td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Распределение</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Отделение:</strong></td>
+                                <td>{{ patient.department.name|default:"Не назначено" }}</td></tr>
+                            <tr><td><strong>Врач:</strong></td>
+                                <td>{{ patient.assigned_by.get_full_name|default:"—" }}</td></tr>
+                            <tr><td><strong>Дата поступления:</strong></td>
+                                <td>{{ patient.admission_date|date:"d.m.Y H:i" }}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        {% if patient.assignment_note %}
+                        <h6 class="text-muted">Примечание</h6>
+                        <p class="small">{{ patient.assignment_note|linebreaks }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <a href="{% url 'patients:edit' pk=patient.pk %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </a>
+                    {% if patient.status == 'waiting' %}
+                    <a href="{% url 'distribution:auto_distribute' patient_id=patient.pk %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-magic"></i> Авто-распределить
+                    </a>
+                    <a href="{% url 'distribution:manual_assign' %}" class="btn btn-info btn-sm text-white">
+                        <i class="bi bi-arrow-left-right"></i> Ручное распределение
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'patients:delete' pk=patient.pk %}" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-trash"></i> Удалить
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> История распределений</h6>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% for log in logs %}
+                <div class="border-bottom pb-2 mb-2">
+                    <small class="text-muted">{{ log.created_at|date:"d.m.Y H:i" }}</small><br>
+                    {% if log.from_department %}
+                    <small>{{ log.from_department.name }}</small>
+                    <i class="bi bi-arrow-right"></i>
+                    {% endif %}
+                    <small><strong>{{ log.to_department.name|default:"—" }}</strong></small>
+                    {% if log.assigned_by %}
+                    <br><small class="text-muted">Врач: {{ log.assigned_by.get_full_name }}</small>
+                    {% endif %}
+                    {% if log.is_automatic %}
+                    <span class="badge bg-success">Авто</span>
+                    {% else %}
+                    <span class="badge bg-primary">Ручное</span>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-muted text-center">Нет записей</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Пол{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <h4><i class="bi bi-gender-ambiguous"></i> Пол</h4>
+    <a href="{% url 'references:gender_create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Добавить
+    </a>
+</div>
+<div class="table-responsive mt-3">
+    <table class="table table-hover">
+        <thead><tr><th>Название</th><th></th></tr></thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td class="text-end">
+                    <a href="{% url 'references:gender_edit' pk=item.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                    <a href="{% url 'references:gender_delete' pk=item.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2" class="text-center text-muted">Нет данных</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

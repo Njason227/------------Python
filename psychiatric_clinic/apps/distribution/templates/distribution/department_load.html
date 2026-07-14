@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Загрузка отделений{% endblock %}
+{% block content %}
+<h4 class="mt-3"><i class="bi bi-building"></i> Загрузка отделений</h4>
+
+<div class="row mt-3">
+    {% for dept in departments %}
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="card-title">{{ dept.name }}</h6>
+                <p class="text-muted small mb-1">{{ dept.profile|default:"—" }}</p>
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="badge bg-secondary">{{ dept.get_gender_restriction_display }}</span>
+                    <span class="badge bg-secondary">{{ dept.get_age_category_display }}</span>
+                </div>
+                <div class="mt-2">
+                    <div class="d-flex justify-content-between small">
+                        <span>Коек: {{ dept.occupied_beds }}/{{ dept.total_beds }}</span>
+                        <span>{{ dept.occupancy_percent }}%</span>
+                    </div>
+                    <div class="occupancy-bar mt-1">
+                        <div class="fill {% if dept.occupancy_percent < 50 %}occupancy-low{% elif dept.occupancy_percent < 80 %}occupancy-medium{% else %}occupancy-high{% endif %}"
+                             style="width: {{ dept.occupancy_percent }}%"></div>
+                    </div>
+                    <div class="text-end small text-muted mt-1">
+                        Свободно: {{ dept.available_beds }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Отделения{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <h4><i class="bi bi-building"></i> Отделения</h4>
+    <a href="{% url 'references:department_create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Добавить
+    </a>
+</div>
+<div class="table-responsive mt-3">
+    <table class="table table-hover table-sm">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Профиль</th>
+                <th>Пол</th>
+                <th>Возраст</th>
+                <th>Коек</th>
+                <th>Занято</th>
+                <th>Свободно</th>
+                <th>Загрузка</th>
+                <th>Активно</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dept in items %}
+            <tr>
+                <td><strong>{{ dept.name }}</strong></td>
+                <td><small>{{ dept.profile|truncatechars:40|default:"—" }}</small></td>
+                <td>{{ dept.get_gender_restriction_display }}</td>
+                <td>{{ dept.get_age_category_display }}</td>
+                <td>{{ dept.total_beds }}</td>
+                <td>{{ dept.occupied_beds }}</td>
+                <td>{{ dept.available_beds }}</td>
+                <td>
+                    <div class="occupancy-bar" style="width: 80px;">
+                        <div class="fill {% if dept.occupancy_percent < 50 %}occupancy-low{% elif dept.occupancy_percent < 80 %}occupancy-medium{% else %}occupancy-high{% endif %}"
+                             style="width: {{ dept.occupancy_percent }}%"></div>
+                    </div>
+                    <small>{{ dept.occupancy_percent }}%</small>
+                </td>
+                <td>
+                    {% if dept.is_active %}
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                    {% else %}
+                    <i class="bi bi-x-circle-fill text-danger"></i>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    <a href="{% url 'references:department_edit' pk=dept.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                    <a href="{% url 'references:department_delete' pk=dept.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="10" class="text-center text-muted">Отделений нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
